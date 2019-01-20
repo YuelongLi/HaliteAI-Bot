@@ -43,7 +43,7 @@ def isSafe(ship,game_map):
 def normalize_position(ship,game_map):
     x= ship.position[0]
     y= ship.position[1]
-    if x<0&&x>game_map.width&&y<0&&y>game_map.height:
+    if (x<0 and x>game_map.width and y<0 and y>game_map.height):
         ship.position=game_map.normalize(ship.position)
 
 
