@@ -1,0 +1,1 @@
+halite.exe --replay-directory replays/ -v --no-logs --width 32 --height 32 "python GeneticBot2.py3.0 1.0 2.0156444175820996 0.8943323601346378 12.599042801189047 1.282213354942492 300.0 300.0 1.0 7.0 1.0 " " python GeneticBot2.py 3.0 1.0 2.0 1.0 10.0 1.0 300.0 300.0 1.0 7.0 1.0 "

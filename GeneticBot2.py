@@ -21,7 +21,7 @@ import logging
 import sys
 
 debug = False
-evolving = True
+evolving = False
 
 # This game object contains the initial game state.
 game = hlt.Game()
@@ -32,7 +32,14 @@ if evolving:
     arg = sys.argv
     for i in range(1,len(arg)):
         gene.append(float(arg[i]))
-else: gene = [3, 1, 2, 1, 10, 1, 300, 300, 1, 7]
+else:
+    gene1 = [2.970838236686183, -6.746584856642684, 2.4833735462091395, 17.275122838579534, 8.825670658073955, 
+            8.169974645647523, 803.5886853089133, 1769.9866582466768, 1.2373187373456498, 5.031640706232297, 130.44046747203575]
+    gene2 = [1.694752105506565, 1.624583421625449, 0.5415420046116491, 1.9320045218797257, 96.16863790117458, 9.124600792523578, 917.7969162817453, 1050.1316618481346, 1.223971819209685, 18.4823494060523, 119.85035763626794]
+    gene3 = [2.821805380092722, 0.6689916583576001, 1.645514405944587, 2.5185937510136296, 0.3284861497574507,
+            0.9264364963052442, 414.5769621092161, 574.9294964238056, 1.0312179260695655, 12.952772984776137, 36.155014379716874]
+    gene = [2.7782890222560783, 2.6934447704787488, 2.50834047292879, 2.28435598829312, 4.807194634240073,
+            1.199855833665504, 296.46895148237587, 1031.7829682921465, 0.9689523610945215, 8.692940267670076, 30.4090328922088]
 
 # Game stats for genetic training
 crash = 0
@@ -60,7 +67,7 @@ class GeneticShip:
         self.ship = ship
         self.position = ship.position
         self.target = None
-        self.target_score = 0
+        self.target_score = -sys.maxsize
 
     def findTarget(self):
         if(not self.target is None):
@@ -133,14 +140,18 @@ class GeneticShip:
     def f4(self, tc):
         if not evolving:
             total = 0
-            for ship in me.get_ships():
-                if ship != self.ship:
-                    d = map.calculate_distance(tc.position, ship.position)
-                    # d doesn't have special case here since no two ships can occupy the same place
-                    total -= self.gene[4]/(0.1 if d == 0 else d)
-            return total
+            for player_id in game.players:
+                player = game.players[player_id]
+                for ship in player.get_ships():
+                    if ship != self.ship:
+                        d = map.calculate_distance(tc.position, ship.position)
+                        # d doesn't have special case here since no two ships can occupy the same place
+                        total -= (self.gene[4] if (ship in  shipList) else self.gene[10])/(0.1 if d == 0 else d)
+                return total
         else:
-            return -self.gene[4]/0.1 if tc.is_occupied else 0
+            total = self.safetyScore(tc, map)
+            if tc.is_occupied: total-= (self.gene[4]/0.1 if(tc.ship in shipList) else self.gene[10]/0.1)
+            return total
 
     def t(self, s1, s2):
         if(s2 is None):
@@ -155,6 +166,16 @@ class GeneticShip:
             return map.naive_navigate(self.ship, Position(random.randint(0, constants.WIDTH-1), random.randint(0,constants.HEIGHT-1)))
         return move
 
+    def safetyScore(self, ship, game_map):
+        total = 0
+        for d in [Direction.North, Direction.South, Direction.West, Direction.East]:
+            targetCell = game_map[ship.position.directional_offset(d)]
+            if  targetCell.is_occupied:
+                if not targetCell.ship in shipList:
+                    total -= self.gene[10]
+                else:
+                    total -= self.gene[4]
+        return total
 
 def navigateCheap(ship, destination):
     """
@@ -182,15 +203,6 @@ turnNumberToStop = max_turn*gene[8]
 def shouldProduce():
     return (me.halite_amount > constants.SHIP_COST and len(shipList) < maxShipAmount and
             game.turn_number < turnNumberToStop and game.turn_number % 2 == 0 and not map[me.shipyard.position].is_occupied)
-
-
-def isSafe(ship, game_map):
-    for d in ["n", "w", "s", "e"]:
-        targetCell = game_map(ship.position.directional_offset(d))
-        if not targetCell.is_occupied and not map_cell.has_structure:
-            return False
-    return True
-
 
 def normalize_position(ship, game_map):
     x = ship.position[0]
@@ -279,7 +291,24 @@ while True:
     if(evolving and game.turn_number == constants.MAX_TURNS):
         haliteInMe = me.halite_amount
         logging.warn(str(crash)+","+str(haliteInMap)+','+str(haliteOnBoard)+','+str(haliteInMe))
-        logging.warn(str(math.exp(-crash))+','+str(haliteInMe/haliteInMap)+','+str(haliteInMe/(haliteInMe+haliteOnBoard)))
+        logging.warn(str(math.exp(-2*crash/maxShipAmount))+','+str(haliteInMe/haliteInMap*30)+','+str(haliteInMe/(haliteInMe+haliteOnBoard)))
         logging.warn(str(gene))
     # Send your moves back to the game environment, ending this turn.
     game.end_turn(command_queue)
+
+# gene 0: Search radius [1, map size]
+# gene 1: Distance cost factor [0.1, 10]
+# gene 2: Shipyard force factor [0.1, 10]
+# gene 3: Dropoff point force factor [0.1, 10]
+# gene 4: Friendly Ship-ship repulsion factor [0, 100]
+# gene 5: Strategic threshold [0.1, 10]
+#   (determines whether target should be switched)
+# gene 6: Initial ship yard retreat threshold [0, max ship cargo]
+#   (determines how much cargo a ship has to carry in order to retreat)
+# gene 7: Initial dropoff threshold [0, max ship cargo]
+#   (determines how much cargo a ship must carry in order to be pulled to dropoff points)
+# gene 8: Wrap-up threshold: [0.5, 1]
+#   (once this portion of the game has passed, the program takes a series of actions including
+#   stop producing ships, exerting a stronger pull on each ship to get them deliver their cargos)
+# gene 9: Max-number of ships to produce per 32 sidelength of game map [1, 30]
+# gene 10: Competitive ship-ship repulsion factor [-100, 100]

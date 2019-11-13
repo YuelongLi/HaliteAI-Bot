@@ -111,7 +111,7 @@ def shouldProduce():
 def isSafe(ship, game_map):
     for d in ["n", "w", "s", "e"]:
         targetCell = game_map(ship.position.directional_offset(d))
-        if not targetCell.is_occupied and not map_cell.has_structure:
+        if not targetCell. 
             return False
     return True
 
